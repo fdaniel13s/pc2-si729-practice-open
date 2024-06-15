@@ -49,12 +49,13 @@ No olvidar cambiar el packagename y nombre de proyecto segun lo pedido
 		</dependency>
 	</dependencies>
     ```
-  No olvidar refrescar Maven.
+  
+- No olvidar refrescar Maven.
 
 
 - Pegar carpeta Shared
 - Configurar application.properties con el siguiente código base
-
+- No olvidar el @EnableJpaAuditing en la clase principal
 
 ````
 
@@ -131,7 +132,88 @@ public class OpenApiConfiguration {
 @Tag(name = "Reservations", description = "Operations related to reservations")
 ````
 
+## GUIA DE EVENTOS
+
+- Crear la carpeta de eventos en el bounded context/domain/model/events
+
+````@Getter
+public final class ReservationCreatedEvent extends ApplicationEvent {
+
+    private final Long reservationId;
+
+
+    /**
+     * Constructor of the event.
+     * <p>The super allow get the object that published the event.</p>
+     * @param source The source the published the event.
+     * @param reservationId The id of the reservation.
+     */
+    public ReservationCreatedEvent(Object source, Long reservationId) {
+        super(source);
+        this.reservationId = reservationId;
+    }
+}
+````
+
+- Crear el event handler en application.internal/eventHandlers. Donde esta la logica de los eventos.
+
+````@Service
+public class ReservationCreatedEventHandler {
+
+    /**
+     * Method that listen the event of reservation created.
+     * @param event The event that is listened.
+     * We should see the event in the console.
+     */
+    @EventListener(ReservationCreatedEvent.class)
+    public void on(ReservationCreatedEvent event){
+        //Here we should implement the logic to handle the event.
+        System.out.println("Reservation created: " + event.getReservationId());
+    }
+}
+````
+
+- En la aggreaate crear el método que se va a encargar de publicar el evento.
+- RegisterEvent es un método de AuditableAbstractAggregateRoot
+
+````public void startReservation(){
+        //RegisterEvent is in AuditableAbstractAggregateRoot
+        this.registerEvent(new ReservationCreatedEvent(this, this.getId()));
+    }
+````
+
+-En la capa de command services si es que hay un command que genere el evento en el handle(commandEvent)
+- No olvidar las anotaciones @Service y @Transactional
+
+````
+ @Override
+    @Transactional //IMPORTANT: DONT FORGET TO ADD THIS ANNOTATION
+    public Optional<Reservation> handle(CreateReservationCommand command) {
+        if (!isGuestNameAndRoomIdUnique(command.guestName(), command.roomId()))
+            throw new IllegalArgumentException("Guest name and room id combination already exists");
+
+        if (!isGuestDniAndRoomIdUnique(command.guestDni(), command.roomId()))
+            throw new IllegalArgumentException("Guest dni and room id combination already exists");
+
+
+        try {
+            var reservation = new Reservation(command);
+            reservationRepository.save(reservation);
+            reservation.startReservation(); // Start the reservation, when the controller is called and make a POST request at  console the message "Reservation created: " + event.getReservationId()s
+            ReservationCreatedEvent event = new ReservationCreatedEvent(this, reservation.getId());
+            eventPublisher.publishEvent(event);
+
+            return Optional.of(reservation);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error while saving reservation");
+        }
+    }
+    
+````
+
+- Con lo que funciona es con el event Publisher. 
+
 
 - CORRE TU PROYECTO Y SUERTE! 
 
-URLE del Swager:   http://localhost:8080/swagger-ui.html
+URL del Swager:   http://localhost:8080/swagger-ui.html

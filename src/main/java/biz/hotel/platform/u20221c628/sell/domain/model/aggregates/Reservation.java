@@ -1,9 +1,12 @@
 package biz.hotel.platform.u20221c628.sell.domain.model.aggregates;
 
 import biz.hotel.platform.u20221c628.sell.domain.model.commands.CreateReservationCommand;
+import biz.hotel.platform.u20221c628.sell.domain.model.events.ReservationCreatedEvent;
 import biz.hotel.platform.u20221c628.sell.domain.model.valueobjects.Guest;
 import biz.hotel.platform.u20221c628.sell.domain.model.valueobjects.Room;
+import biz.hotel.platform.u20221c628.shared.domain.model.aggregates.AuditableAbstractAggregateRoot;
 import jakarta.persistence.*;
+import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,7 +16,8 @@ import java.util.Date;
 @Entity
 @NoArgsConstructor
 @Getter
-public class Reservation {
+@Transactional
+public class Reservation extends AuditableAbstractAggregateRoot<Reservation>{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, updatable = false)
@@ -57,4 +61,10 @@ public class Reservation {
         this.price = command.price();
         this.discountPercent = command.discountPercent();
     }
+
+    public void startReservation(){
+        //RegisterEvent is in AuditableAbstractAggregateRoot
+        this.registerEvent(new ReservationCreatedEvent(this, this.getId()));
+    }
+
 }
